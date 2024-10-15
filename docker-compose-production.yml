@@ -1,0 +1,79 @@
+
+version: '3'
+services:
+  django_server:
+    build:
+      context: .
+      dockerfile: django/production/Dockerfile
+    command: bash ./django/production/start
+    container_name: django_service_work_shop_api
+    networks:
+      - django_net
+    volumes:
+      - .:/code
+    env_file:
+      - django/production/api.env
+    ports:
+      - "8000:8000"
+
+  redis:
+    image: redis:latest
+    container_name: redis_service_work_shop_api
+    ports:
+      - '6379:6379'
+  
+
+  celery-worker:
+    container_name: celery_worker_service_work_shop_api
+    build:
+      context: .
+      dockerfile: django/production/Dockerfile
+    volumes:
+      - .:/code
+    command: celery -A work_shop_api.celery_cfg worker --loglevel=info
+    env_file:
+      - ./django/production/api.env
+    depends_on:
+      - redis
+      - django_server
+    networks:
+      - django_net
+
+  celery-beat:
+    container_name: celery_beat_service
+    build:
+      context: .
+      dockerfile: django/production/Dockerfile
+    volumes:
+      - .:/code
+    command: celery -A work_shop_api.celery_cfg beat --loglevel=info
+    env_file:
+      - ./django/production/api.env
+    depends_on:
+      - redis
+      - django_server
+    networks:
+      - django_net
+
+  apache2-container:
+    build: ./apache
+    image: ubuntu/apache2:2.4-22.04_beta
+    restart: always
+    container_name: apache2_container_work_shop_api
+    command: ./setup.sh
+    environment:
+      - TZ=UTC
+    ports:
+      - "9088:9088"
+    networks:
+      - django_net
+    depends_on:
+      - django_server
+    volumes:
+      - /var/work_shop_api/log/apache2/:/var/log/apache2/api
+      - /etc/work_shop_api/apache2/sites-available/:/etc/apache2/sites-available/
+
+  
+networks:
+  django_net:
+    driver: bridge

@@ -1,0 +1,61 @@
+
+version: '3'
+services:
+  django_server:
+    build:
+      context: .
+      dockerfile: django/development/Dockerfile
+    command: bash ./django/development/start
+    container_name: django_service_work_shop_api
+    networks:
+      - django_net
+    volumes:
+      - .:/code
+    env_file:
+      - django/development/api.env
+    ports:
+      - "8000:8000"
+
+  redis:
+    image: redis:latest
+    container_name: redis_service_work_shop_api
+    ports:
+      - '6379:6379'
+    networks:
+      - django_net
+
+  celery-worker:
+    container_name: celery_worker_service_work_shop_api
+    build:
+      context: .
+      dockerfile: django/development/Dockerfile
+    volumes:
+      - .:/code
+    command: celery -A work_shop_api.celery_cfg worker --loglevel=info
+    env_file:
+      - django/development/api.env
+    depends_on:
+      - redis
+      - django_server
+    networks:
+      - django_net
+
+  celery-beat:
+    container_name: celery_beat_service_work_shop_api
+    build:
+      context: .
+      dockerfile: django/development/Dockerfile
+    volumes:
+      - .:/code
+    command: celery -A work_shop_api.celery_cfg beat --loglevel=info
+    env_file:
+      - django/development/api.env
+    depends_on:
+      - redis
+      - django_server
+    networks:
+      - django_net
+  
+networks:
+  django_net:
+    driver: bridge
